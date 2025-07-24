@@ -53,6 +53,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authz -> authz
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/public/**").permitAll()
+                        .requestMatchers("/api/import/**").permitAll()
                         .requestMatchers("/h2-console/**").permitAll() // Cho phép truy cập H2
                         .anyRequest().authenticated()
                 )
