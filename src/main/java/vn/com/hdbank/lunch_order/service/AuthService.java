@@ -54,13 +54,15 @@ public class AuthService {
     }
 
     public User register(RegisterDto registerDto) {
+        if (!registerDto.getPassword().equals(registerDto.getConfirmPassword())) {
+            throw BusinessException.badRequest("Mật khẩu xác nhận không khớp");
+        }
         if (userRepository.existsByUsername(registerDto.getUsername())) {
             throw BusinessException.conflict("Tên đăng nhập đã tồn tại");
         }
-
-         if (userRepository.existsByEmail(registerDto.getEmail())) {
-             throw BusinessException.conflict("Email đã được sử dụng");
-         }
+        if (userRepository.existsByEmail(registerDto.getEmail())) {
+            throw BusinessException.conflict("Email đã được sử dụng");
+        }
 
         try {
             User user = new User();
@@ -69,6 +71,13 @@ public class AuthService {
             user.setEmail(registerDto.getEmail());
             user.setPassword(passwordEncoder.encode(registerDto.getPassword()));
             user.setBalance(BigDecimal.ZERO);
+            user.setDisplayName(registerDto.getDisplayName());
+            user.setPhoneNo(registerDto.getPhoneNo());
+            user.setBio(registerDto.getBio());
+            user.setTeam(registerDto.getTeam());
+            user.setBirthday(registerDto.getBirthday());
+            user.setAvatar(registerDto.getAvatar());
+            user.setEmployeeCode(registerDto.getEmployeeCode());
 
             Role role = roleRepository.findByName("ROLE_USER")
                     .orElseThrow(() -> BusinessException.notFound("Vai trò mặc định không tồn tại"));
@@ -112,84 +121,4 @@ public class AuthService {
         }
     }
 
-    public UserProfileDto getMyProfile(String username) {
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> BusinessException.notFound("Người dùng không tồn tại"));
-
-        return convertToUserProfileDto(user);
-    }
-
-    public UserProfileDto updateMyProfile(String username, UpdateProfileDto updateProfileDto) {
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> BusinessException.notFound("Người dùng không tồn tại"));
-
-        if (!user.getEmail().equals(updateProfileDto.getEmail()) &&
-                userRepository.existsByEmail(updateProfileDto.getEmail())) {
-            throw BusinessException.conflict("Email đã được sử dụng");
-        }
-
-        try {
-            user.setName(updateProfileDto.getName());
-            user.setEmail(updateProfileDto.getEmail());
-
-            User updatedUser = userRepository.save(user);
-            return convertToUserProfileDto(updatedUser);
-
-        } catch (Exception e) {
-            throw new BusinessException("Lỗi khi cập nhật thông tin: " + e.getMessage());
-        }
-    }
-
-    public UserProfileDto getUserProfile(Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> BusinessException.notFound("Người dùng không tồn tại"));
-
-        UserProfileDto profile = convertToUserProfileDto(user);
-        profile.setBalance(null);
-        return profile;
-    }
-
-    public List<UserProfileDto> getAllUsers() {
-        List<User> users = userRepository.findAll();
-        return users.stream()
-                .map(this::convertToUserProfileDto)
-                .collect(Collectors.toList());
-    }
-
-    public List<UserProfileDto> searchUsers(String keyword) {
-        List<User> users = userRepository.findByNameContainingIgnoreCaseOrUsernameContainingIgnoreCase(
-                keyword, keyword);
-
-        return users.stream()
-                .map(user -> {
-                    UserProfileDto profile = convertToUserProfileDto(user);
-                    profile.setBalance(null); // Ẩn thông tin deposit trong tìm kiếm
-                    return profile;
-                })
-                .collect(Collectors.toList());
-    }
-
-    private UserProfileDto convertToUserProfileDto(User user) {
-        Set<String> authorityNames = user.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .collect(Collectors.toSet());
-
-        return UserProfileDto.builder()
-                .name(user.getName())
-                .username(user.getUsername())
-                .email(user.getEmail())
-                .balance(user.getBalance())
-                .phoneNumber(user.getPhoneNo())
-                .avatar(user.getAvatar())
-                .team(user.getTeam())
-                .bio(user.getBio())
-                .birthday(user.getBirthday() != null ? user.getBirthday().atStartOfDay() : null)
-                .createdAt(user.getCreatedAt())
-                .updatedAt(user.getUpdatedAt())
-                .authorities(authorityNames)
-                .employeeCode(user.getEmployeeCode())
-                .displayName(user.getDisplayName())
-                .build();
-
-    }
 }

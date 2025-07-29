@@ -1,5 +1,6 @@
 package vn.com.hdbank.lunch_order.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -54,9 +55,11 @@ public class OrderForm {
     private User creator;
 
     @OneToMany(mappedBy = "orderForm", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonIgnore
     private List<UserOrder> userOrders = new ArrayList<>();
 
     @OneToMany(mappedBy = "orderForm", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonIgnore
     private List<BookUser> bookUsers = new ArrayList<>();
 
     @PreUpdate
