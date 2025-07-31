@@ -1,5 +1,6 @@
 package vn.com.hdbank.lunch_order.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -32,6 +33,7 @@ public class BookUser {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_form_id", nullable = false)
+    @JsonIgnore
     private OrderForm orderForm;
 
     @ManyToOne(fetch = FetchType.LAZY)
