@@ -6,18 +6,17 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import vn.com.hdbank.lunch_order.dto.BeUserOrderDto;
 import vn.com.hdbank.lunch_order.dto.CreateOrderFormDto;
+import vn.com.hdbank.lunch_order.dto.CreateUserOrderDto;
 import vn.com.hdbank.lunch_order.dto.UpdateOrderFormDto;
-import vn.com.hdbank.lunch_order.entity.BeUserOrder;
-import vn.com.hdbank.lunch_order.entity.Menu;
-import vn.com.hdbank.lunch_order.entity.OrderForm;
-import vn.com.hdbank.lunch_order.entity.User;
-import vn.com.hdbank.lunch_order.repository.BeUserOrderRepository;
-import vn.com.hdbank.lunch_order.repository.MenuRepository;
-import vn.com.hdbank.lunch_order.repository.OrderFormRepository;
-import vn.com.hdbank.lunch_order.repository.UserRepository;
+import vn.com.hdbank.lunch_order.dto.response.OrderFormDetailResponseDto;
+import vn.com.hdbank.lunch_order.dto.response.UserOrderResponseDto;
+import vn.com.hdbank.lunch_order.entity.*;
+import vn.com.hdbank.lunch_order.exception.BusinessException;
+import vn.com.hdbank.lunch_order.repository.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -28,8 +27,10 @@ public class OrderFormService {
     private final MenuRepository menuRepository;
     private final UserRepository userRepository;
     private final BeUserOrderRepository beUserOrderRepository;
+    private final ItemRepository itemRepository;
+    private final UserOrderRepository userOrderRepository;
 
-    public OrderForm create(CreateOrderFormDto dto) {
+    public OrderFormDetailResponseDto create(CreateOrderFormDto dto) {
         Menu menu = menuRepository.findById(dto.getMenuId())
                 .orElseThrow(() -> new EntityNotFoundException("Menu not found"));
         User creator = userRepository.findById(dto.getCreatorId())
@@ -46,10 +47,11 @@ public class OrderFormService {
         orderForm.setMenu(menu);
         orderForm.setCreator(creator);
 
-        return orderFormRepository.save(orderForm);
+        OrderForm savedForm = orderFormRepository.save(orderForm);
+        return OrderFormDetailResponseDto.fromEntity(savedForm);
     }
 
-    public OrderForm update(Long id, UpdateOrderFormDto dto) {
+    public OrderFormDetailResponseDto update(Long id, UpdateOrderFormDto dto) {
         OrderForm form = orderFormRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("OrderForm not found"));
 
@@ -61,21 +63,72 @@ public class OrderFormService {
         form.setStatus(dto.getStatus());
         form.setUpdatedAt(LocalDateTime.now());
 
-        return orderFormRepository.save(form);
+        OrderForm updatedForm = orderFormRepository.save(form);
+        return OrderFormDetailResponseDto.fromEntity(updatedForm);
     }
 
     public void delete(Long id) {
         orderFormRepository.deleteById(id);
     }
 
-    public OrderForm get(Long id) {
-        return orderFormRepository.findById(id)
+    public OrderFormDetailResponseDto get(Long id) {
+        OrderForm orderForm = orderFormRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("OrderForm not found"));
+        return OrderFormDetailResponseDto.fromEntity(orderForm);
     }
 
-    public List<OrderForm> getAll() {
-        return orderFormRepository.findAll();
+    public List<OrderFormDetailResponseDto> getAll() {
+        return orderFormRepository.findAll().stream()
+                .map(OrderFormDetailResponseDto::fromEntity)
+                .toList();
     }
+
+    @Transactional
+    public UserOrderResponseDto placeOrder(Long orderFormId, CreateUserOrderDto dto, String username) {
+        OrderForm orderForm = orderFormRepository.findById(orderFormId)
+                .orElseThrow(() -> BusinessException.notFound("Order Form không tồn tại"));
+
+        if (!orderForm.isActive()) {
+            throw BusinessException.badRequest("Order Form đã đóng hoặc không hợp lệ");
+        }
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> BusinessException.notFound("Người dùng không tồn tại"));
+
+        UserOrder userOrder = new UserOrder();
+        userOrder.setOrderForm(orderForm);
+        userOrder.setUser(user);
+        userOrder.setNote(dto.getNote());
+        userOrder.setStatus("pending");
+
+        BigDecimal totalMoney = BigDecimal.ZERO;
+        List<UserOrderDetail> details = new ArrayList<>();
+
+        for (CreateUserOrderDto.OrderItemDto itemDto : dto.getItems()) {
+            Item item = itemRepository.findById(itemDto.getItemId())
+                    .orElseThrow(() -> BusinessException.notFound("Món ăn với ID " + itemDto.getItemId() + " không tồn tại"));
+
+            // Check if the item belongs to the correct menu
+            if (!item.getMenu().getId().equals(orderForm.getMenu().getId())) {
+                throw BusinessException.badRequest("Món ăn " + item.getItemName() + " không thuộc về menu của order form này.");
+            }
+
+            UserOrderDetail detail = new UserOrderDetail();
+            detail.setItem(item);
+            detail.setQuantity(itemDto.getQuantity());
+            detail.setUserOrder(userOrder);
+            details.add(detail);
+
+            totalMoney = totalMoney.add(item.getPrice().multiply(BigDecimal.valueOf(itemDto.getQuantity())));
+        }
+
+        userOrder.setMoney(totalMoney);
+        userOrder.setOrderDetails(details);
+
+        UserOrder savedOrder = userOrderRepository.save(userOrder);
+        return UserOrderResponseDto.fromEntity(savedOrder);
+    }
+
 
     @Transactional
     public BeUserOrder addBeUserToOrderForm(BeUserOrderDto dto) {
@@ -96,7 +149,6 @@ public class OrderFormService {
 
         beUserOrderRepository.save(beUserOrder);
 
-        // Tính lại totalPrice dựa trên tất cả BeUserOrders của đơn
         BigDecimal total = beUserOrderRepository.findByOrderFormId(dto.getOrderFormId()).stream()
                 .map(BeUserOrder::getMoney)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -115,7 +167,6 @@ public class OrderFormService {
         beUserOrder.setMoney(newMoney);
         beUserOrderRepository.save(beUserOrder);
 
-        // Update totalPrice của orderForm
         Long orderFormId = beUserOrder.getOrderForm().getId();
         BigDecimal total = beUserOrderRepository.findByOrderFormId(orderFormId).stream()
                 .map(BeUserOrder::getMoney)
@@ -127,6 +178,4 @@ public class OrderFormService {
 
         return beUserOrder;
     }
-
 }
-
