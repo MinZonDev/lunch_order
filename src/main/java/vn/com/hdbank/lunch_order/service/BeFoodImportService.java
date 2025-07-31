@@ -36,42 +36,13 @@ public class BeFoodImportService {
     private final ItemRepository itemRepository;
     private final UserRepository userRepository;
 
-    public void importFromBeApi() throws IOException {
+    public void importFromBeApi(String beFoodToken, JsonNode payload) throws IOException {
         // 1. Call API
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setBearerAuth("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjowLCJhdWQiOiJndWVzdCIsImV4cCI6MTc1MzQzMDQ2MiwiaWF0IjoxNzUzMzQ0MDYyLCJpc3MiOiJiZS1kZWxpdmVyeS1nYXRld2F5In0.SM5-roATtf3aLTWt4hSftq3krmxRUH7SMWI2gnuklXU");
-        String json = """
-        {
-            "restaurant_id": "23992",
-            "locale": "vi",
-            "app_version": "11280",
-            "version": "1.1.280",
-            "device_type": 3,
-            "operator_token": "0b28e008bc323838f5ec84f718ef11e6",
-            "customer_package_name": "xyz.be.food",
-            "device_token": "8cf04e281318af421dc03fc482e00bfd",
-            "ad_id": "",
-            "screen_width": 360,
-            "screen_height": 640,
-            "client_info": {
-                "locale": "vi",
-                "app_version": "11280",
-                "version": "1.1.280",
-                "device_type": 3,
-                "operator_token": "0b28e008bc323838f5ec84f718ef11e6",
-                "customer_package_name": "xyz.be.food",
-                "device_token": "8cf04e281318af421dc03fc482e00bfd",
-                "ad_id": "",
-                "screen_width": 360,
-                "screen_height": 640
-            },
-            "latitude": 10.77253621500006,
-            "longitude": 106.69798153800008
-        }
-        """;
+        headers.setBearerAuth(beFoodToken);
 
-        HttpEntity<String> entity = new HttpEntity<>(json, headers);
+        HttpEntity<JsonNode> entity = new HttpEntity<>(payload, headers);
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(
                 "https://gw.be.com.vn/api/v1/be-marketplace/web/restaurant/detail",
                 entity, JsonNode.class);
@@ -118,4 +89,3 @@ public class BeFoodImportService {
         }
     }
 }
-
